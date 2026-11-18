@@ -40,6 +40,30 @@ jobs:
           repository: ${{ github.event.inputs.repository }}
           ref: ${{ github.event.inputs.ref }}
 
+      - name: Remove boards with invalid config
+        shell: bash
+        run: |
+          # build.py 会校验全部板子的 config.json（要求顶层 type 字段），
+          # 上游 dev 分支个别 WIP 板子配置缺失会连坐整体构建，这里剔除它们
+          python3 - <<'PY'
+          import json, pathlib, shutil
+          boards = pathlib.Path("main/boards")
+          removed = []
+          for d in sorted(boards.iterdir()):
+              cfg = d / "config.json"
+              if not cfg.exists():
+                  continue
+              try:
+                  data = json.loads(cfg.read_text())
+                  valid = bool(data.get("type"))
+              except Exception:
+                  valid = False
+              if not valid:
+                  shutil.rmtree(d)
+                  removed.append(d.name)
+          print("已剔除无效板子配置:", removed or "无")
+          PY
+
       - name: Build firmware
         shell: bash
         env:
