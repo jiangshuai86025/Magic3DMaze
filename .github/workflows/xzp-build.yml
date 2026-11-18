@@ -15,6 +15,10 @@ on:
         description: "板型（main/boards 下的目录名）"
         required: false
         default: "bread-compact-wifi"
+      variant:
+        description: "变体名（config.json builds[].name，多变体板子必填）"
+        required: false
+        default: "bread-compact-wifi"
       language:
         description: "固件语言"
         required: false
@@ -68,16 +72,17 @@ jobs:
         shell: bash
         env:
           BOARD: ${{ github.event.inputs.board }}
+          VARIANT: ${{ github.event.inputs.variant }}
           LANGUAGE: ${{ github.event.inputs.language }}
           WAKE_WORD: ${{ github.event.inputs.wake_word }}
         run: |
           source "$IDF_PATH/export.sh"
-          python scripts/build.py "$BOARD" --language "$LANGUAGE" --wake-word "$WAKE_WORD"
+          python scripts/build.py "$BOARD" --name "$VARIANT" --language "$LANGUAGE" --wake-word "$WAKE_WORD"
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v7
         with:
-          name: xiaozhi_${{ github.event.inputs.board }}_${{ github.event.inputs.ref }}
+          name: xiaozhi_${{ github.event.inputs.board }}_${{ github.event.inputs.variant }}_${{ github.event.inputs.ref }}
           path: |
             build/merged-binary.bin
             build/xiaozhi.bin
