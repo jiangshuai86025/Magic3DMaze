@@ -1,0 +1,60 @@
+name: Build xiaozhiPro firmware
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "上游源码仓库"
+        required: false
+        default: "hougeai/xiaozhiPro"
+      ref:
+        description: "上游分支或标签"
+        required: false
+        default: "dev"
+      board:
+        description: "板型（main/boards 下的目录名）"
+        required: false
+        default: "bread-compact-wifi"
+      language:
+        description: "固件语言"
+        required: false
+        default: "zh-CN"
+      wake_word:
+        description: "唤醒词模型 (nihaoxiaozhi / hiesp / wn9_xxx / disabled)"
+        required: false
+        default: "nihaoxiaozhi"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ github.event.inputs.board }}
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:release-v6.1
+    steps:
+      - name: Checkout upstream source
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.event.inputs.repository }}
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: Build firmware
+        shell: bash
+        env:
+          BOARD: ${{ github.event.inputs.board }}
+          LANGUAGE: ${{ github.event.inputs.language }}
+          WAKE_WORD: ${{ github.event.inputs.wake_word }}
+        run: |
+          source "$IDF_PATH/export.sh"
+          python scripts/build.py "$BOARD" --language "$LANGUAGE" --wake-word "$WAKE_WORD"
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: xiaozhi_${{ github.event.inputs.board }}_${{ github.event.inputs.ref }}
+          path: |
+            build/merged-binary.bin
+            build/xiaozhi.bin
+          if-no-files-found: error
