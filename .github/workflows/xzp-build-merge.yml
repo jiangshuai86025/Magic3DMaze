@@ -85,5 +85,4 @@ jobs:
           path: |
             build/merged-binary.bin
             build/xiaozhi.bin
-            build/srmodels.bin
           if-no-files-found: error
