@@ -1,0 +1,89 @@
+name: Build xiaozhiPro firmware (IDF 5.5 merge channel)
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "上游源码仓库"
+        required: false
+        default: "jiangshuai86025/xiaozhiPro"
+      ref:
+        description: "上游分支或标签"
+        required: false
+        default: "merge-wechat"
+      board:
+        description: "板型（main/boards 下的目录名）"
+        required: false
+        default: "nologo/xingzhi-cube-1.54tft-wifi"
+      variant:
+        description: "变体名（config.json builds[].name）"
+        required: false
+        default: "xingzhi-cube-1.54tft-wifi"
+      language:
+        description: "固件语言"
+        required: false
+        default: "zh-CN"
+      wake_word:
+        description: "唤醒词（disabled=由源码 sdkconfig 决定）"
+        required: false
+        default: "disabled"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ github.event.inputs.board }}
+    runs-on: ubuntu-latest
+    # IDF 5.5.5：与 TiRTC 预编译库的 ABI 构建环境一致（Pro 默认 6.1 通道不兼容）
+    container:
+      image: espressif/idf:v5.5.5
+    steps:
+      - name: Checkout upstream source
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.event.inputs.repository }}
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: Remove boards with invalid config
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, shutil
+          boards = pathlib.Path("main/boards")
+          removed = []
+          for d in sorted(boards.iterdir()):
+              cfg = d / "config.json"
+              if not cfg.exists():
+                  continue
+              try:
+                  data = json.loads(cfg.read_text())
+                  valid = bool(data.get("type"))
+              except Exception:
+                  valid = False
+              if not valid:
+                  shutil.rmtree(d)
+                  removed.append(d.name)
+          print("已剔除无效板子配置:", removed or "无")
+          PY
+
+      - name: Build firmware
+        shell: bash
+        env:
+          BOARD: ${{ github.event.inputs.board }}
+          VARIANT: ${{ github.event.inputs.variant }}
+          LANGUAGE: ${{ github.event.inputs.language }}
+          WAKE_WORD: ${{ github.event.inputs.wake_word }}
+        run: |
+          source "$IDF_PATH/export.sh"
+          python scripts/build.py "$BOARD" --name "$VARIANT" --language "$LANGUAGE" --wake-word "$WAKE_WORD"
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: xiaozhi_${{ github.event.inputs.board }}_${{ github.event.inputs.variant }}_${{ github.event.inputs.ref }}
+          path: |
+            build/merged-binary.bin
+            build/xiaozhi.bin
+            build/srmodels.bin
+          if-no-files-found: error
